@@ -97,16 +97,17 @@ fn main() {
 
     match &cli.command {
         Commands::Vigenere { operation } => {
-            match operation {
-                VigenereOperation::Decrypt { key } => {
-                    let key = Alpha::from_str(key.as_str());
-                    let stdin = std::io::stdin();
-                    for line in stdin.lock().lines() {
-                        let mut line = Alpha::from_str(line.unwrap().as_str());
-                        vigenere(&key, &mut line, false);
-                        println!("{}", Alpha::to_str(&line));
-                    }
-                }
+            let (encrypt, key) = match operation {
+                VigenereOperation::Decrypt { key } => (false, key),
+                VigenereOperation::Encrypt { key } => (true, key),
+            };
+
+            let key = Alpha::from_str(key.as_str());
+            let stdin = std::io::stdin();
+            for line in stdin.lock().lines() {
+                let mut line = Alpha::from_str(line.unwrap().as_str());
+                vigenere(&key, &mut line, encrypt);
+                println!("{}", Alpha::to_str(&line));
             }
         }
     }

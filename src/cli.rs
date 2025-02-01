@@ -21,4 +21,7 @@ pub enum VigenereOperation {
     Decrypt {
         key: String,
     },
+    Encrypt {
+        key: String,
+    },
 }
