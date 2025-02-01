@@ -7,6 +7,7 @@ edition = "2021"
 
 [dependencies]
 clap = { version = "3", features = ["derive"] }
+itertools = "0.14.0"
 
 [[bin]]
 name = "cipher"

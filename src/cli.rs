@@ -24,4 +24,9 @@ pub enum VigenereOperation {
     Encrypt {
         key: String,
     },
+    Bruteforce {
+        dictionary_file: String,
+        max_length: usize,
+        cipher_text: String,
+    },
 }

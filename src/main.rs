@@ -1,7 +1,9 @@
-use std::io::BufRead;
+use std::io::{BufRead, BufReader, Write};
+use std::collections::HashSet;
 use clap::Parser;
 use cli::*;
 use std::ops::*;
+use itertools::Itertools;
 
 mod cli;
 
@@ -92,22 +94,60 @@ fn vigenere(key: &[Alpha], text: &mut [Alpha], encrypt: bool) {
     }
 }
 
+fn run_vigenere_stream(encrypt: bool, key: String) {
+    let key = Alpha::from_str(key.as_str());
+    let stdin = std::io::stdin();
+    for line in stdin.lock().lines() {
+        let mut line = Alpha::from_str(line.unwrap().as_str());
+        vigenere(&key, &mut line, encrypt);
+        println!("{}", Alpha::to_str(&line));
+    }
+}
+
 fn main() {
     let cli = Cli::parse();
 
-    match &cli.command {
+    match cli.command {
         Commands::Vigenere { operation } => {
-            let (encrypt, key) = match operation {
-                VigenereOperation::Decrypt { key } => (false, key),
-                VigenereOperation::Encrypt { key } => (true, key),
-            };
+            match operation {
+                VigenereOperation::Encrypt { key } => run_vigenere_stream(true, key),
+                VigenereOperation::Decrypt { key } => run_vigenere_stream(false, key),
+                VigenereOperation::Bruteforce {
+                    dictionary_file,
+                    max_length,
+                    cipher_text,
+                } => {
+                    let mut dictionary = HashSet::new();
+                    let file = std::fs::File::open(dictionary_file).unwrap();
+                    let file = BufReader::new(file);
+                    for line in file.lines() {
+                        dictionary.insert(line.unwrap().to_uppercase());
+                    }
 
-            let key = Alpha::from_str(key.as_str());
-            let stdin = std::io::stdin();
-            for line in stdin.lock().lines() {
-                let mut line = Alpha::from_str(line.unwrap().as_str());
-                vigenere(&key, &mut line, encrypt);
-                println!("{}", Alpha::to_str(&line));
+                    let mut text = Vec::new();
+                    let mut i = 0;
+                    for key in (b'A'..b'Z').permutations(max_length) {
+                        text.clear();
+                        text.extend_from_slice(&Alpha::from_str(cipher_text.as_str()));
+
+                        let key: Vec<Alpha> = key.into_iter().map(Alpha::from_ascii).collect();
+                        vigenere(&key, &mut text, false);
+                        let words = Alpha::to_str(&text);
+                        if words.split(" ").all(|word| dictionary.contains(word)) {
+                            println!("\nKey is {}", Alpha::to_str(&key));
+                            return;
+                        }
+                        i += 1;
+                        if (i % 1000000) == 0 {
+                            print!(".");
+                            std::io::stdout().flush().unwrap();
+                        }
+                        if (i % 80000000) == 0 {
+                            println!(" {}", Alpha::to_str(&key));
+                        }
+                    }
+                    println!();
+                },
             }
         }
     }
