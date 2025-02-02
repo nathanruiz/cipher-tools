@@ -104,6 +104,67 @@ fn run_vigenere_stream(encrypt: bool, key: String) {
     }
 }
 
+fn find_vigenere_key<KeyIterator>(
+    cipher_text: &str,
+    keys: KeyIterator,
+    dictionary: HashSet<String>
+) -> Option<Vec<Alpha>>
+    where KeyIterator: Iterator<Item=Vec<Alpha>>
+{
+    let mut text = Vec::new();
+    let mut i = 0;
+    let mut closest_key: Option<(Vec<Alpha>, usize)> = None;
+    for key in keys {
+        text.clear();
+        text.extend_from_slice(&Alpha::from_str(cipher_text));
+
+        vigenere(&key, &mut text, false);
+        let words = Alpha::to_str(&text);
+        let total_words = words.split(" ").count();
+        let valid_words = words.split(" ").filter(|word| dictionary.contains(*word)).count();
+
+        // All words returned are in the dictionary, so we can assume this is a perfect match.
+        if valid_words == total_words {
+            println!();
+            return Some(key);
+        }
+
+        // At least half of the words match, so might be a candidate for a near match. This helps
+        // in cases were some words aren't in the provided dictionary.
+        if valid_words > total_words / 2 {
+            match &closest_key {
+                Some((_, score)) => {
+                    if valid_words > *score {
+                        closest_key = Some((key.clone(), valid_words));
+                    }
+                }
+                None => closest_key = Some((key.clone(), valid_words)),
+            };
+        }
+
+        i += 1;
+        if (i % 1000) == 0 {
+            print!(".");
+            std::io::stdout().flush().unwrap();
+        }
+        if (i % 80000) == 0 {
+            println!(" {}", Alpha::to_str(&key));
+        }
+    }
+    println!();
+    closest_key.map(|(key, _)| key)
+}
+
+fn load_dictionary(dictionary_file: &str) -> HashSet<String> {
+    let mut dictionary = HashSet::new();
+    let file = std::fs::File::open(dictionary_file).unwrap();
+    let file = BufReader::new(file);
+    for line in file.lines() {
+        dictionary.insert(line.unwrap().to_uppercase());
+    }
+    dictionary
+}
+
 fn main() {
     let cli = Cli::parse();
 
@@ -112,41 +173,45 @@ fn main() {
             match operation {
                 VigenereOperation::Encrypt { key } => run_vigenere_stream(true, key),
                 VigenereOperation::Decrypt { key } => run_vigenere_stream(false, key),
+                VigenereOperation::Dictionary {
+                    dictionary_file,
+                    cipher_text,
+                } => {
+                    let dictionary = load_dictionary(dictionary_file.as_str());
+
+                    let file = std::fs::File::open(dictionary_file).unwrap();
+                    let file = BufReader::new(file);
+                    let keys = file.lines()
+                        .map(|line| line.unwrap().to_uppercase())
+                        .map(|key| key.bytes().map(Alpha::from_ascii).collect());
+
+                    match find_vigenere_key(cipher_text.as_str(), keys, dictionary) {
+                        Some(key) => {
+                            let mut plain_text = Alpha::from_str(cipher_text.as_str());
+                            vigenere(&key, &mut plain_text, false);
+                            println!("Key is {}: {} -> {}", Alpha::to_str(&key), cipher_text, Alpha::to_str(&plain_text));
+                        }
+                        None => println!("No key found"),
+                    };
+                },
                 VigenereOperation::Bruteforce {
                     dictionary_file,
                     max_length,
                     cipher_text,
                 } => {
-                    let mut dictionary = HashSet::new();
-                    let file = std::fs::File::open(dictionary_file).unwrap();
-                    let file = BufReader::new(file);
-                    for line in file.lines() {
-                        dictionary.insert(line.unwrap().to_uppercase());
-                    }
+                    let dictionary = load_dictionary(dictionary_file.as_str());
 
-                    let mut text = Vec::new();
-                    let mut i = 0;
-                    for key in (b'A'..b'Z').permutations(max_length) {
-                        text.clear();
-                        text.extend_from_slice(&Alpha::from_str(cipher_text.as_str()));
+                    let keys = (b'A'..b'Z').permutations(max_length)
+                        .map(|key| key.into_iter().map(Alpha::from_ascii).collect());
 
-                        let key: Vec<Alpha> = key.into_iter().map(Alpha::from_ascii).collect();
-                        vigenere(&key, &mut text, false);
-                        let words = Alpha::to_str(&text);
-                        if words.split(" ").all(|word| dictionary.contains(word)) {
-                            println!("\nKey is {}", Alpha::to_str(&key));
-                            return;
+                    match find_vigenere_key(cipher_text.as_str(), keys, dictionary) {
+                        Some(key) => {
+                            let mut plain_text = Alpha::from_str(cipher_text.as_str());
+                            vigenere(&key, &mut plain_text, false);
+                            println!("Key is {}: {} -> {}", Alpha::to_str(&key), cipher_text, Alpha::to_str(&plain_text));
                         }
-                        i += 1;
-                        if (i % 1000000) == 0 {
-                            print!(".");
-                            std::io::stdout().flush().unwrap();
-                        }
-                        if (i % 80000000) == 0 {
-                            println!(" {}", Alpha::to_str(&key));
-                        }
-                    }
-                    println!();
+                        None => println!("No key found"),
+                    };
                 },
             }
         }
@@ -159,21 +224,22 @@ mod tests {
 
     #[test]
     fn test_vigenere() {
-        let key = Alpha::from_str("KEY");
         let cases = [
-            ("TWOWORDS", "DAMGSPNW"),
-            ("TWO WORDS", "DAM GSPNW"),
+            ("KEY", "TWOWORDS", "DAMGSPNW"),
+            ("KEY", "TWO WORDS", "DAM GSPNW"),
         ];
 
         // Ensure we can encrypt these words correctly.
-        for (plain_text, cipher_text) in cases {
+        for (key, plain_text, cipher_text) in cases {
+            let key = Alpha::from_str(key);
             let mut text = Alpha::from_str(plain_text);
             vigenere(&key, &mut text, true);
             assert_eq!(Alpha::to_str(&text), cipher_text);
         }
 
         // Ensure we can decrypt these words correctly.
-        for (plain_text, cipher_text) in cases {
+        for (key, plain_text, cipher_text) in cases {
+            let key = Alpha::from_str(key);
             let mut text = Alpha::from_str(cipher_text);
             vigenere(&key, &mut text, false);
             assert_eq!(Alpha::to_str(&text), plain_text);
