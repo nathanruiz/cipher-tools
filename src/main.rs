@@ -1,5 +1,5 @@
 use std::io::{BufRead, BufReader, Write};
-use std::collections::HashSet;
+use std::collections::{HashSet, HashMap};
 use clap::Parser;
 use cli::*;
 use std::ops::*;
@@ -165,6 +165,19 @@ fn load_dictionary(dictionary_file: &str) -> HashSet<String> {
     dictionary
 }
 
+fn a1z26_decode(line: &str) -> Vec<String> {
+    line.split(" ")
+        .filter(|word| !word.is_empty())
+        .map(|word| {
+            let word: Vec<Alpha> = word.split("-")
+                .map(|s| str::parse(s).unwrap())
+                .map(|i: i32| Alpha::from_num(i - 1))
+                .collect();
+            Alpha::to_str(&word)
+        })
+        .collect()
+}
+
 fn main() {
     let cli = Cli::parse();
 
@@ -215,6 +228,48 @@ fn main() {
                 },
             }
         }
+        Commands::A1Z26 { operation } => {
+            match operation {
+                A1Z26Operation::Decode => {
+                    let stdin = std::io::stdin();
+                    for line in stdin.lock().lines() {
+                        let words = a1z26_decode(line.unwrap().as_str());
+                        println!("{}", words.join(" "));
+                    }
+                }
+            }
+        }
+        Commands::Substitution { lookup_file, reverse } => {
+            let file = std::fs::File::open(lookup_file).unwrap();
+            let file = BufReader::new(file);
+            let mapping: HashMap<char, char> = file.lines()
+                .map(|line| line.unwrap().to_uppercase())
+                .map(|line| {
+                    let (src, dst) = line.split_once(" ").unwrap();
+                    let src = src.chars().nth(0).unwrap();
+                    let dst = dst.chars().nth(0).unwrap();
+                    if reverse {
+                        (dst, src)
+                    } else {
+                        (src, dst)
+                    }
+                })
+                .collect();
+
+            let stdin = std::io::stdin();
+            for line in stdin.lock().lines() {
+                let line: String = line.unwrap()
+                    .chars()
+                    .map(|c| {
+                        match mapping.get(&c) {
+                            Some(c) => *c,
+                            None => c,
+                        }
+                    })
+                    .collect();
+                println!("{}", line);
+            }
+        }
     }
 }
 
@@ -244,5 +299,10 @@ mod tests {
             vigenere(&key, &mut text, false);
             assert_eq!(Alpha::to_str(&text), plain_text);
         }
+    }
+
+    #[test]
+    fn test_a1z26() {
+        assert_eq!(a1z26_decode("1-2-3 24-25-26"), vec!["ABC", "XYZ"]);
     }
 }
