@@ -21,14 +21,25 @@ pub enum Commands {
         #[clap(subcommand)]
         operation: A1Z26Operation,
     },
-    /// Perform substitution ciphers with a provided lookup file.
+    /// Perform a substitution ciphers with a provided lookup file.
     Substitution {
         /// A lookup file with each line containing a mapping between the source
         /// and target characters separated by a space.
         lookup_file: String,
 
-        /// Apply the substitutions in backwards. This can be used to decrypt a previously
-        /// encrypted message.
+        /// Apply the substitutions backwards. This can be used to decrypt a previously encrypted
+        /// message.
+        #[clap(short, long, action)]
+        reverse: bool,
+    },
+    /// Perform a Caesar cipher with a provided offset.
+    Caesar {
+        /// A lookup file with each line containing a mapping between the source and target
+        /// characters separated by a space.
+        offset: i32,
+
+        /// Apply the substitutions backwards. This can be used to decrypt a previously encrypted
+        /// message.
         #[clap(short, long, action)]
         reverse: bool,
     },

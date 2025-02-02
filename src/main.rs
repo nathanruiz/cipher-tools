@@ -104,6 +104,22 @@ fn run_vigenere_stream(encrypt: bool, key: String) {
     }
 }
 
+fn run_substitution_stream(mapping: HashMap<char, char>) {
+    let stdin = std::io::stdin();
+    for line in stdin.lock().lines() {
+        let line: String = line.unwrap()
+            .chars()
+            .map(|c| {
+                match mapping.get(&c) {
+                    Some(c) => *c,
+                    None => c,
+                }
+            })
+            .collect();
+        println!("{}", line);
+    }
+}
+
 fn find_vigenere_key<KeyIterator>(
     cipher_text: &str,
     keys: KeyIterator,
@@ -256,19 +272,25 @@ fn main() {
                 })
                 .collect();
 
-            let stdin = std::io::stdin();
-            for line in stdin.lock().lines() {
-                let line: String = line.unwrap()
-                    .chars()
-                    .map(|c| {
-                        match mapping.get(&c) {
-                            Some(c) => *c,
-                            None => c,
-                        }
-                    })
-                    .collect();
-                println!("{}", line);
+            run_substitution_stream(mapping);
+        }
+        Commands::Caesar { offset, reverse } => {
+            if offset < 1 || offset > 25 {
+                eprintln!("Offset must be between 1 and 25");
+                std::process::exit(1);
             }
+
+            let mut mapping = HashMap::new();
+            let mut offset = offset as u8;
+            if reverse {
+                offset = 26 - offset;
+            }
+            for input in b'A'..b'Z' {
+                let output = ((input - b'A' + offset as u8) % 26) + b'A';
+                mapping.insert(input as char, output as char);
+            }
+
+            run_substitution_stream(mapping);
         }
     }
 }
