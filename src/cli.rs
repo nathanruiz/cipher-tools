@@ -43,6 +43,8 @@ pub enum Commands {
         #[clap(short, long, action)]
         reverse: bool,
     },
+    /// Perform an Atbash cipher to the content from stdin.
+    Atbash {}
 }
 
 #[derive(Subcommand)]

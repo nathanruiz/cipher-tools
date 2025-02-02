@@ -292,6 +292,14 @@ fn main() {
 
             run_substitution_stream(mapping);
         }
+        Commands::Atbash { } => {
+            let mut mapping = HashMap::new();
+            for i in 0..26 {
+                mapping.insert((b'A' + i) as char, (b'A' + (25 - i)) as char);
+            }
+
+            run_substitution_stream(mapping);
+        }
     }
 }
 
